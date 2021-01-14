@@ -9,31 +9,21 @@ package contentservice;
 option go_package = "github.com/gitpod-io/gitpod/content-service/api";
 
 service BlobService {
-  // Upload provides a URL to which clients can upload the content via HTTP
+  // UploadUrl provides a URL to which clients can upload the content via HTTP
   // PUT. Possible errors:
   // - INVALID_ARGUMENT if owner_id or name do not match `[a-zA-Z0-9._\-\/]+`
   // - RESOURCE_EXHAUSTED if a user's upload area is exhausted
-  rpc Upload(UploadRequest) returns (UploadResponse) {}
+  rpc UploadUrl(UploadUrlRequest) returns (UploadUrlResponse) {}
 
-  // Commit commits the blob to the store,
-  // possibly overwriting previously existing blob data.
-  // If multiple concurrent uploads are in progress, the last commit wins.
-  // Possible errors:
-  // - INVALID_ARGUMENT if owner_id or name do not match `[a-zA-Z0-9._\-\/]+`
-  // - NOT_FOUND if the commit token is unknown
-  // - RESOURCE_EXHAUSTED if a user's storage space is exhausted
-  rpc Commit(CommitRequest) returns (CommitResponse) {}
-
-  // Download provides a URL from which clients download the content via HTTP.
+  // DownloadUrl provides a URL from which clients download the content via HTTP.
   // Expect the download to be resumable, i.e. support for the `Range` header.
   // Possible errors:
   // - INVALID_ARGUMENT if owner_id or name do not match `[a-zA-Z0-9._\-\/]+`
   // - NOT_FOUND if the blob does not exist
-  rpc Download(DownloadRequest) returns (DownloadResponse) {}
+  rpc DownloadUrl(DownloadUrlRequest) returns (DownloadUrlResponse) {}
 
   // Delete removes blob content from the store immediately.
   // This renders previously provided up-/download URLs invalid.
-  // Not-yet committed uploads are discarded as well.
   // Ongoing up-/downloads may or may not succeed.
   // Possible errors:
   // - INVALID_ARGUMENT if owner_id or name do not match `[a-zA-Z0-9._\-\/]+`
@@ -46,14 +36,14 @@ message BlobRef {
   string name = 2;
 }
 
-message UploadRequest {
+message UploadUrlRequest {
   BlobRef ref = 1;
   // time_to_live is a valid Go duration string that determines an object's
   string time_to_live = 2;
   string media_type = 3;
 }
 
-message UploadResponse {
+message UploadUrlResponse {
   string url = 1;
   string commit_token = 2;
 }
@@ -65,11 +55,11 @@ message CommitRequest {
 
 message CommitResponse {}
 
-message DownloadRequest {
+message DownloadUrlRequest {
   BlobRef ref = 1;
 }
 
-message DownloadResponse {
+message DownloadUrlResponse {
   string url = 1;
 }
 

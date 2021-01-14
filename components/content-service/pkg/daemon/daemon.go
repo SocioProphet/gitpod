@@ -15,12 +15,12 @@ import (
 )
 
 // NewDaemon produces a new daemon
-func NewDaemon(strg storage.Config) (*Daemon, error) {
-	srv, err := service.NewContentService()
+func NewDaemon(cfg storage.Config) (*Daemon, error) {
+	srv, err := service.NewContentService(cfg)
 	if err != nil {
 		return nil, xerrors.Errorf("cannot create content service: %w", err)
 	}
-	return &Daemon{srv, strg}, nil
+	return &Daemon{srv, cfg}, nil
 }
 
 // Daemon provides the content service
@@ -31,7 +31,8 @@ type Daemon struct {
 
 // Start runs all parts of the daemon until stop is called
 func (d *Daemon) Start() error {
-	return tmp(d.strg)
+	// return tmp(d.strg)
+	return nil
 }
 
 func tmp(strg storage.Config) error {
@@ -60,7 +61,7 @@ func tmp(strg storage.Config) error {
 
 // Register registers all gRPC services provided by this daemon
 func (d *Daemon) Register(srv *grpc.Server) {
-	api.RegisterContentServiceServer(srv, d.service)
+	api.RegisterBlobServiceServer(srv, d.service)
 }
 
 // Stop gracefully shuts down the daemon. Once stopped, it

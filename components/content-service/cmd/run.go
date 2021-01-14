@@ -72,6 +72,7 @@ var runCmd = &cobra.Command{
 			if err != nil {
 				log.WithError(err).Fatal("cannot start server")
 			}
+			log.Debug("gRCP server has been stopped")
 		}()
 		log.WithField("addr", cfg.Service.Addr).Info("started gRPC server")
 
