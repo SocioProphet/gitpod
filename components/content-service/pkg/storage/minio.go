@@ -191,7 +191,7 @@ func (rs *DirectMinIOStorage) download(ctx context.Context, destination string, 
 
 // DownloadLatestWsSnapshot takes the latest state from the remote storage and downloads it to a local path
 func (rs *DirectMinIOStorage) DownloadLatestWsSnapshot(ctx context.Context, destination string, name string) (bool, error) {
-	return rs.download(ctx, destination, rs.bucketName(), rs.workspaceObjectName(name))
+	return rs.download(ctx, destination, rs.bucketName(), workspaceObjectName(rs.WorkspaceName, name))
 }
 
 // DownloadWsSnapshot downloads a snapshot. The snapshot name is expected to be one produced by QualifyWsSnapshot
@@ -206,7 +206,7 @@ func (rs *DirectMinIOStorage) DownloadWsSnapshot(ctx context.Context, destinatio
 
 // QualifyWsSnapshot fully qualifies a snapshot name so that it can be downloaded using DownloadWsSnapshot
 func (rs *DirectMinIOStorage) QualifyWsSnapshot(name string) string {
-	return fmt.Sprintf("%s@%s", rs.workspaceObjectName(name), rs.bucketName())
+	return fmt.Sprintf("%s@%s", workspaceObjectName(rs.WorkspaceName, name), rs.bucketName())
 }
 
 // UploadWsSnapshot takes all files from a local location and uploads it to the remote storage
@@ -227,7 +227,7 @@ func (rs *DirectMinIOStorage) UploadWsSnapshot(ctx context.Context, source strin
 
 	// upload the thing
 	bucket = rs.bucketName()
-	obj = rs.workspaceObjectName(name)
+	obj = workspaceObjectName(rs.WorkspaceName, name)
 	_, err = rs.client.FPutObject(ctx, bucket, obj, source, minio.PutObjectOptions{
 		NumThreads:   rs.MinIOConfig.ParallelUpload,
 		UserMetadata: options.Annotations,
@@ -251,15 +251,11 @@ func (rs *DirectMinIOStorage) Bucket(ownerID string) string {
 
 // BackupObject returns a backup's object name that a direct downloader would download
 func (rs *DirectMinIOStorage) BackupObject(name string) string {
-	return rs.workspaceObjectName(name)
+	return workspaceObjectName(rs.WorkspaceName, name)
 }
 
 func (rs *DirectMinIOStorage) bucketName() string {
 	return minioBucketName(rs.Username)
-}
-
-func (rs *DirectMinIOStorage) workspaceObjectName(name string) string {
-	return fmt.Sprintf("workspaces/%s/%s", rs.WorkspaceName, name)
 }
 
 func newPresignedMinIOAccess(cfg MinIOConfig) (*presignedMinIOStorage, error) {
@@ -299,6 +295,12 @@ func (s *presignedMinIOStorage) SignDownload(ctx context.Context, bucket, object
 	if err != nil {
 		return nil, translateMinioError(err)
 	}
+	// tags := &tags.Tags{}
+	// err = tags.Set("LastRead", time.Now().String())
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// s.client.PutObjectTagging(ctx, bucket, object, tags, minio.PutObjectTaggingOptions{})
 	span.LogKV("stat", stat)
 	return &DownloadInfo{
 		Meta: ObjectMeta{
@@ -312,6 +314,46 @@ func (s *presignedMinIOStorage) SignDownload(ctx context.Context, bucket, object
 	}, nil
 }
 
+// SignUpload describes an object for upload
+func (s *presignedMinIOStorage) SignUpload(ctx context.Context, bucket, obj string) (info *UploadInfo, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "minio.SignUpload")
+	defer func() {
+		if err == ErrNotFound {
+			span.LogKV("found", false)
+			tracing.FinishSpan(span, nil)
+			return
+		}
+
+		tracing.FinishSpan(span, &err)
+	}()
+
+	url, err := s.client.PresignedPutObject(ctx, bucket, obj, 30*time.Minute)
+	if err != nil {
+		return nil, translateMinioError(err)
+	}
+	return &UploadInfo{URL: url.String()}, nil
+}
+
+// DeleteObject deletes an object - if the object is not found, ErrNotFound is returned
+func (s *presignedMinIOStorage) DeleteObject(ctx context.Context, bucket, obj string) (err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "minio.DeleteObject")
+	defer func() {
+		if err == ErrNotFound {
+			span.LogKV("found", false)
+			tracing.FinishSpan(span, nil)
+			return
+		}
+
+		tracing.FinishSpan(span, &err)
+	}()
+
+	err = s.client.RemoveObject(ctx, bucket, obj, minio.RemoveObjectOptions{})
+	if err != nil {
+		return translateMinioError(err)
+	}
+	return nil
+}
+
 func annotationToAmzMetaHeader(annotation string) string {
 	return http.CanonicalHeaderKey(fmt.Sprintf("X-Amz-Meta-%s", annotation))
 }
@@ -319,6 +361,11 @@ func annotationToAmzMetaHeader(annotation string) string {
 // Bucket provides the bucket name for a particular user
 func (s *presignedMinIOStorage) Bucket(ownerID string) string {
 	return minioBucketName(ownerID)
+}
+
+// BlobObject returns a blob's object name
+func (s *presignedMinIOStorage) BlobObject(name string) (string, error) {
+	return blobObjectName(name)
 }
 
 func translateMinioError(err error) error {

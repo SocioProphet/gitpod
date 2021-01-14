@@ -254,7 +254,7 @@ func (rs *DirectGCPStorage) fixLegacyFilenames(ctx context.Context, destination 
 
 // DownloadLatestWsSnapshot takes the latest state from the remote storage and downloads it to a local path
 func (rs *DirectGCPStorage) DownloadLatestWsSnapshot(ctx context.Context, destination string, name string) (bool, error) {
-	return rs.download(ctx, destination, rs.bucketName(), rs.objectName(name))
+	return rs.download(ctx, destination, rs.bucketName(), workspaceObjectName(rs.WorkspaceName, name))
 }
 
 // DownloadWsSnapshot downloads a snapshot. The snapshot name is expected to be one produced by QualifyWsSnapshot
@@ -282,7 +282,7 @@ func ParseSnapshotName(name string) (bkt, obj string, err error) {
 
 // QualifyWsSnapshot fully qualifies a snapshot name so that it can be downloaded using DownloadWsSnapshot
 func (rs *DirectGCPStorage) QualifyWsSnapshot(name string) string {
-	return fmt.Sprintf("%s@%s", rs.objectName(name), rs.bucketName())
+	return fmt.Sprintf("%s@%s", workspaceObjectName(rs.WorkspaceName, name), rs.bucketName())
 }
 
 // UploadWsSnapshot takes all files from a local location and uploads it to the remote storage
@@ -332,7 +332,7 @@ func (rs *DirectGCPStorage) UploadWsSnapshot(ctx context.Context, source string,
 
 	uploadSpan := opentracing.StartSpan("remote-upload", opentracing.ChildOf(span.Context()))
 	uploadSpan.SetTag("bucket", rs.bucketName())
-	uploadSpan.SetTag("obj", rs.objectName(name))
+	uploadSpan.SetTag("obj", workspaceObjectName(rs.WorkspaceName, name))
 	/* Read back from the file in chunks. We don't wand a complicated composition operation,
 	 * so we'll have 32 chunks max. See https://cloud.google.com/storage/docs/composite-objects
 	 * for more details.
@@ -358,7 +358,7 @@ func (rs *DirectGCPStorage) UploadWsSnapshot(ctx context.Context, source string,
 	for i := 0; i < len(chunks); i++ {
 		src[i] = bkt.Object(chunks[i])
 	}
-	object = rs.objectName(name)
+	object = workspaceObjectName(rs.WorkspaceName, name)
 	obj := bkt.Object(object)
 
 	var firstBackup bool
@@ -645,7 +645,12 @@ func (rs *DirectGCPStorage) Bucket(ownerID string) string {
 
 // BackupObject returns a backup's object name that a direct downloader would download
 func (rs *DirectGCPStorage) BackupObject(name string) string {
-	return rs.objectName(name)
+	return workspaceObjectName(rs.WorkspaceName, name)
+}
+
+// BlobObject returns a blob's object name
+func (rs *DirectGCPStorage) BlobObject(name string) (string, error) {
+	return blobObjectName(name)
 }
 
 func gcpBucketName(stage Stage, ownerID string) string {
@@ -654,10 +659,6 @@ func gcpBucketName(stage Stage, ownerID string) string {
 
 func (rs *DirectGCPStorage) workspacePrefix() string {
 	return fmt.Sprintf("workspaces/%s", rs.WorkspaceName)
-}
-
-func (rs *DirectGCPStorage) objectName(name string) string {
-	return fmt.Sprintf("%s/%s", rs.workspacePrefix(), name)
 }
 
 func (rs *DirectGCPStorage) trailPrefix() string {
@@ -736,6 +737,11 @@ func (p *PresignedGCPStorage) Bucket(owner string) string {
 	return gcpBucketName(p.stage, owner)
 }
 
+// BlobObject returns a blob's object name
+func (s *PresignedGCPStorage) BlobObject(name string) (string, error) {
+	return blobObjectName(name)
+}
+
 // SignDownload provides presigned URLs to access remote storage objects
 func (p *PresignedGCPStorage) SignDownload(ctx context.Context, bucket, object string) (*DownloadInfo, error) {
 	client, err := newGCPClient(ctx, p.config)
@@ -767,6 +773,18 @@ func (p *PresignedGCPStorage) SignDownload(ctx context.Context, bucket, object s
 	}
 
 	return res, nil
+}
+
+// SignUpload describes an object for upload
+func (s *PresignedGCPStorage) SignUpload(ctx context.Context, bucket, obj string) (info *UploadInfo, err error) {
+	// TODO: implement me
+	return nil, ErrNotFound
+}
+
+// DeleteObject deletes an object - if the object is not found, ErrNotFound is returned
+func (s *PresignedGCPStorage) DeleteObject(ctx context.Context, bucket, obj string) (err error) {
+	// TODO: implement me
+	return ErrNotFound
 }
 
 func (p *PresignedGCPStorage) downloadInfo(ctx context.Context, client *gcpstorage.Client, obj *gcpstorage.ObjectAttrs) (*DownloadInfo, error) {

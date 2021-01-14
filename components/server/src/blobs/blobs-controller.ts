@@ -17,7 +17,7 @@ export class BlobsController {
     get apiRouter(): express.Router {
         const router = express.Router();
 
-        router.post("/upload-url/:blobname", async (req: express.Request, res: express.Response, _next: express.NextFunction) => {
+        router.post("/upload-url/:blobname(*)", async (req: express.Request, res: express.Response, _next: express.NextFunction) => {
             if (!req.isAuthenticated() || !User.is(req.user)) {
                 res.sendStatus(500);
                 return;
@@ -44,10 +44,12 @@ export class BlobsController {
             });
             try {
                 const resp = (await uploadUrlPromise).toObject();
-                res.send(`response: ${JSON.stringify(resp)}`);
+                res.send(`${JSON.stringify(resp)}`);
             } catch (err) {
                 log.error("bloberror", err);
                 res.send("error: " + err);
+            } finally {
+                client.close();
             }
         });
 
@@ -78,10 +80,12 @@ export class BlobsController {
             });
             try {
                 const resp = (await downloadUrlPromise).toObject();
-                res.send(`response: ${JSON.stringify(resp)}`);
+                res.send(`${JSON.stringify(resp)}`);
             } catch (err) {
                 log.error("bloberror", err);
                 res.send("error: " + err);
+            } finally {
+                client.close();
             }
         });
 

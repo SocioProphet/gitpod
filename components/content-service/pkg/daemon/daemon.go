@@ -52,7 +52,7 @@ func tmp(strg storage.Config) error {
 		return xerrors.Errorf("cannot use configured storage: %w", err)
 	}
 
-	_, _, err = remoteStorage.Upload(ctx, "/config/config.json", "config.json")
+	_, _, err = remoteStorage.UploadWsSnapshot(ctx, "/config/config.json", "config.json")
 	if err != nil {
 		return xerrors.Errorf("cannot upload to configured storage: %w", err)
 	}

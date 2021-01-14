@@ -12,6 +12,9 @@ pprof:
   address: ":6060"
 storage:
 {{ toYaml $comp.remoteStorage | indent 2 }}
+{{- if (and .Values.minio .Values.minio.enabled) }}
+  replaceHost: {{ .Values.hostname }}
+{{- end }}
 {{ end }}
 {{ end }}
 
